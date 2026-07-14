@@ -1,0 +1,344 @@
+name: Sync upstreams and publish image
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      force_publish:
+        description: Rebuild and publish even when upstream references are unchanged
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: sync-and-publish-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  sync-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Discover and lock upstream build inputs
+        id: upstreams
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.force_publish || false }}
+        run: |
+          set -Eeuo pipefail
+
+          easybot_commit_json=$(curl --fail --silent --show-error --location \
+            --retry 4 --retry-all-errors \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/easybot-team/easybot-docker/commits/main)
+          easybot_commit=$(jq -er \
+            '.sha | strings | select(test("^[0-9a-f]{40}$"))' \
+            <<< "$easybot_commit_json")
+
+          napcat_docker_commit_json=$(curl --fail --silent --show-error --location \
+            --retry 4 --retry-all-errors \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/NapNeko/NapCat-Docker/commits/main)
+          napcat_docker_commit=$(jq -er \
+            '.sha | strings | select(test("^[0-9a-f]{40}$"))' \
+            <<< "$napcat_docker_commit_json")
+
+          napcat_release_json=$(curl --fail --silent --show-error --location \
+            --retry 4 --retry-all-errors \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/NapNeko/NapCatQQ/releases/latest)
+          napcat_version=$(jq -er \
+            '.tag_name | strings | select(test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"))' \
+            <<< "$napcat_release_json")
+
+          easybot_dockerfile=$(curl --fail --silent --show-error --location \
+            --retry 4 --retry-all-errors \
+            "https://raw.githubusercontent.com/easybot-team/easybot-docker/${easybot_commit}/src/Dockerfile")
+          dotnet_image=$(sed -nE \
+            's#^FROM (mcr\.microsoft\.com/dotnet/aspnet:[^ ]+) AS base$#\1#p' \
+            <<< "$easybot_dockerfile" | sort -u)
+          chrome_version=$(grep -oE \
+            'ChromeHeadlessShell/Linux-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' \
+            <<< "$easybot_dockerfile" | sed 's#.*Linux-##' | sort -u)
+
+          napcat_dockerfile=$(curl --fail --silent --show-error --location \
+            --retry 4 --retry-all-errors \
+            "https://raw.githubusercontent.com/NapNeko/NapCat-Docker/${napcat_docker_commit}/Dockerfile")
+          qq_url=$(grep -oE \
+            'https://dldir1v6\.qq\.com/qqfile/qq/QQNT/[0-9a-f]+/linuxqq_[0-9]+\.[0-9]+\.[0-9]+-[0-9]+_\$\{arch\}\.deb' \
+            <<< "$napcat_dockerfile" | sort -u)
+          qq_download_id=$(sed -nE \
+            's#^.*/QQNT/([^/]+)/linuxqq_.*$#\1#p' <<< "$qq_url")
+          qq_version=$(sed -nE \
+            's#^.*/linuxqq_([^_]+)_\$\{arch\}\.deb$#\1#p' <<< "$qq_url")
+
+          bash scripts/update-upstreams.sh \
+            Dockerfile \
+            "$dotnet_image" \
+            "$easybot_commit" \
+            "$chrome_version" \
+            "$napcat_docker_commit" \
+            "$napcat_version" \
+            "$qq_download_id" \
+            "$qq_version"
+
+          changed=false
+          if ! git diff --quiet -- Dockerfile; then
+            changed=true
+          fi
+
+          should_publish=$changed
+          if [[ "$FORCE_PUBLISH" == true ]]; then
+            should_publish=true
+          fi
+
+          easybot_short=${easybot_commit:0:8}
+          napcat_docker_short=${napcat_docker_commit:0:8}
+          composite_tag="easybot-${easybot_short}-napcat-${napcat_version}-docker-${napcat_docker_short}"
+
+          {
+            echo "dotnet_image=${dotnet_image}"
+            echo "easybot_commit=${easybot_commit}"
+            echo "easybot_short=${easybot_short}"
+            echo "chrome_version=${chrome_version}"
+            echo "napcat_docker_commit=${napcat_docker_commit}"
+            echo "napcat_docker_short=${napcat_docker_short}"
+            echo "napcat_version=${napcat_version}"
+            echo "qq_download_id=${qq_download_id}"
+            echo "qq_version=${qq_version}"
+            echo "composite_tag=${composite_tag}"
+            echo "changed=${changed}"
+            echo "should_publish=${should_publish}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Report no upstream change
+        if: steps.upstreams.outputs.should_publish != 'true'
+        shell: bash
+        run: |
+          {
+            echo "## Upstream sync"
+            echo
+            echo "EasyBot and NapCat are already current; no commit or image was published."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up Docker Buildx
+        if: steps.upstreams.outputs.should_publish == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build validation image
+        if: steps.upstreams.outputs.should_publish == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          load: true
+          pull: true
+          push: false
+          tags: easybot-napcat:validation
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Validate both services start
+        if: steps.upstreams.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          container_id=$(docker run --detach \
+            --name easybot-napcat-validation \
+            --env WEBUI_TOKEN=validation-only \
+            easybot-napcat:validation)
+          cleanup() {
+            docker logs "$container_id" || true
+            docker rm --force "$container_id" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for _ in $(seq 1 12); do
+            if [[ "$(docker inspect --format '{{.State.Running}}' "$container_id")" != true ]]; then
+              echo "Combined container exited during startup." >&2
+              exit 1
+            fi
+            if docker exec "$container_id" sh -ceu '
+              test -s /run/easybot-napcat/easybot.pid
+              test -s /run/easybot-napcat/napcat.pid
+              kill -0 "$(cat /run/easybot-napcat/easybot.pid)"
+              kill -0 "$(cat /run/easybot-napcat/napcat.pid)"
+            '; then
+              ready=true
+              break
+            fi
+            sleep 5
+          done
+          [[ "$ready" == true ]] || {
+            echo "EasyBot and NapCat did not become ready within 60 seconds." >&2
+            exit 1
+          }
+
+      - name: Commit locked upstream versions
+        if: steps.upstreams.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Dockerfile
+          git commit -m "chore: sync EasyBot ${{ steps.upstreams.outputs.easybot_short }} and NapCat ${{ steps.upstreams.outputs.napcat_version }}"
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
+
+      - name: Resolve image name
+        if: steps.upstreams.outputs.should_publish == 'true'
+        id: image
+        shell: bash
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          package_name=${GITHUB_REPOSITORY#*/}
+          package_name=${package_name,,}
+          {
+            echo "name=${image}"
+            echo "package_name=${package_name}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        if: steps.upstreams.outputs.should_publish == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Resolve publish tags
+        if: steps.upstreams.outputs.should_publish == 'true'
+        id: tags
+        shell: bash
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          ROLLBACK_TAG: ${{ steps.upstreams.outputs.composite_tag }}
+        run: |
+          set -Eeuo pipefail
+          inspect_error=$(mktemp)
+          trap 'rm -f "$inspect_error"' EXIT
+          tags="${IMAGE}:latest"
+          rollback_published=true
+          if docker buildx imagetools inspect \
+            "${IMAGE}:${ROLLBACK_TAG}" >/dev/null 2>"$inspect_error"; then
+            echo "Rollback tag already exists and will not be overwritten: ${ROLLBACK_TAG}"
+            rollback_published=false
+          elif ! grep -Eqi 'not found|manifest unknown' "$inspect_error"; then
+            cat "$inspect_error" >&2
+            echo "Unable to determine whether the rollback tag already exists." >&2
+            exit 1
+          else
+            tags+=$'\n'"${IMAGE}:${ROLLBACK_TAG}"
+          fi
+          {
+            echo "value<<EOF"
+            echo "$tags"
+            echo "EOF"
+            echo "rollback_published=${rollback_published}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish combined image
+        if: steps.upstreams.outputs.should_publish == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          pull: true
+          push: true
+          tags: ${{ steps.tags.outputs.value }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.upstreams.outputs.composite_tag }}
+            io.dotnet.image=${{ steps.upstreams.outputs.dotnet_image }}
+            io.easybot.upstream.commit=${{ steps.upstreams.outputs.easybot_commit }}
+            io.easybot.chrome.version=${{ steps.upstreams.outputs.chrome_version }}
+            io.napcat.docker.commit=${{ steps.upstreams.outputs.napcat_docker_commit }}
+            io.napcat.upstream.version=${{ steps.upstreams.outputs.napcat_version }}
+            io.qq.version=${{ steps.upstreams.outputs.qq_version }}
+          cache-from: type=gha
+
+      - name: Make the GHCR package public
+        if: steps.upstreams.outputs.should_publish == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          OWNER_TYPE: ${{ github.event.repository.owner.type }}
+          PACKAGE_NAME: ${{ steps.image.outputs.package_name }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "$OWNER_TYPE" == Organization ]]; then
+            read_endpoint="/orgs/${OWNER}/packages/container/${PACKAGE_NAME}"
+            write_endpoint=$read_endpoint
+          else
+            read_endpoint="/users/${OWNER}/packages/container/${PACKAGE_NAME}"
+            write_endpoint="/user/packages/container/${PACKAGE_NAME}"
+          fi
+
+          last_error=''
+          for _ in $(seq 1 6); do
+            visibility=$(gh api "$read_endpoint" --jq .visibility 2>/dev/null || true)
+            if [[ "$visibility" == public ]]; then
+              echo "GHCR package visibility is public."
+              exit 0
+            fi
+            if last_error=$(gh api --method PATCH "$write_endpoint" -f visibility=public 2>&1); then
+              echo "GHCR package visibility is public."
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "$last_error" >&2
+          echo "Unable to make the GHCR package public automatically." >&2
+          echo "Set the package visibility to Public in GitHub package settings, then rerun this workflow." >&2
+          exit 1
+
+      - name: Publish summary
+        if: steps.upstreams.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          {
+            echo "## Published combined image"
+            echo
+            echo "- Image: \`${{ steps.image.outputs.name }}\`"
+            echo "- Latest: \`${{ steps.image.outputs.name }}:latest\`"
+            echo "- Rollback tag: \`${{ steps.image.outputs.name }}:${{ steps.upstreams.outputs.composite_tag }}\`"
+            echo "- Rollback tag published now: \`${{ steps.tags.outputs.rollback_published }}\`"
+            echo "- EasyBot: \`${{ steps.upstreams.outputs.easybot_commit }}\`"
+            echo "- NapCat: \`${{ steps.upstreams.outputs.napcat_version }}\`"
+            echo "- NapCat Docker: \`${{ steps.upstreams.outputs.napcat_docker_commit }}\`"
+            echo "- QQ: \`${{ steps.upstreams.outputs.qq_version }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  keepalive-workflow:
+    name: Keepalive Workflow
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: liskin/gh-workflow-keepalive@main
