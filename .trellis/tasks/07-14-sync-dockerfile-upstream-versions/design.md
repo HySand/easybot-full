@@ -36,6 +36,8 @@ Dockerfile 的版本契约由以下 ARG 组成：
 
 卷：`/opt/easybot/appdata`、`/opt/easybot/logs`、`/app/napcat/config`、`/app/.config/QQ`。
 
+暴露端口：EasyBot Web `5000`、EasyBot WebSocket `26990`、NapCat WebUI `6099`。
+
 ## Version Discovery
 
 workflow 使用 GitHub API 获取：

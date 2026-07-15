@@ -147,7 +147,7 @@ WORKDIR /app
 
 VOLUME ["/app/napcat/config", "/app/.config/QQ", "/opt/easybot/appdata", "/opt/easybot/logs"]
 
-EXPOSE 5000 26990 6099 3000 3001
+EXPOSE 5000 26990 6099
 
 STOPSIGNAL SIGTERM
 

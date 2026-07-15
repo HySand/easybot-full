@@ -14,8 +14,6 @@ docker run -d \
   -p 5000:5000 \
   -p 26990:26990 \
   -p 6099:6099 \
-  -p 3000:3000 \
-  -p 3001:3001 \
   -v easybot-appdata:/opt/easybot/appdata \
   -v easybot-logs:/opt/easybot/logs \
   -v napcat-config:/app/napcat/config \
