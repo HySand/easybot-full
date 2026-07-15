@@ -96,8 +96,10 @@ RUN set -eux; \
         --output /tmp/easybot.tar.gz; \
     tar -xzf /tmp/easybot.tar.gz -C /tmp/easybot-source --strip-components=1; \
     cp -a /tmp/easybot-source/boot/stable/. /opt/easybot/; \
-    test -f /opt/easybot/EasyBot; \
-    chmod 0755 /opt/easybot/EasyBot; \
+    chmod 0755 /opt/easybot/*; \
+    test -x /opt/easybot/EasyBot; \
+    test -x /opt/easybot/EasyBot.WebUI; \
+    test -x /opt/easybot/EasyBot.WebUI.Updater; \
     mkdir -p /opt/easybot/appdata /opt/easybot/logs; \
     printf '{}\n' > /opt/easybot/appdata/appsettings.json; \
     chmod 0777 /opt/easybot/appdata /opt/easybot/logs; \

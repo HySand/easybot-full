@@ -17,7 +17,7 @@ Dockerfile 的版本契约由以下 ARG 组成：
 构建流程：
 
 1. 安装 EasyBot full 与 NapCat base 所需依赖，并安装 `tini`。
-2. 下载 `easybot-team/easybot-docker` 的锁定 commit archive，将 `boot/stable` 复制到 `/opt/easybot`。
+2. 下载 `easybot-team/easybot-docker` 的锁定 commit archive，将 `boot/stable` 复制到 `/opt/easybot`，并按上游行为为顶层启动文件补齐执行权限。
 3. 按锁定 Chrome 版本下载 Chrome Headless Shell 到 EasyBot 预期目录。
 4. 下载 `NapNeko/NapCat-Docker` 的锁定 commit archive，复制 `entrypoint.sh` 和 `templates` 到 `/app`。
 5. 下载锁定 NapCatQQ release 的 `NapCat.Shell.zip`。
@@ -53,7 +53,7 @@ workflow 使用 GitHub API 获取：
 
 ## Workflow
 
-定时/手动运行依次执行发现、更新、Buildx 构建、短时双进程启动验证、bot 提交、GHCR 发布和 Public 可见性检查。各上游版本保存在 Dockerfile 和 OCI labels 中。
+定时/手动运行依次执行发现、更新、Buildx 构建、双进程 PID 与 EasyBot HTTP 就绪验证、bot 提交、GHCR 发布和 Public 可见性检查。各上游版本保存在 Dockerfile 和 OCI labels 中。
 
 镜像名固定为简短的 `ghcr.io/<owner>/ebnc`。不可变标签只使用构建所对应仓库 commit 的前 8 位；发布前检查远端标签，已存在时只更新 `latest`，探测错误则停止发布，确保回滚标签不会被覆盖。
 

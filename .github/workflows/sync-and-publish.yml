@@ -170,7 +170,7 @@ jobs:
           trap cleanup EXIT
 
           ready=false
-          for _ in $(seq 1 12); do
+          for _ in $(seq 1 24); do
             if [[ "$(docker inspect --format '{{.State.Running}}' "$container_id")" != true ]]; then
               echo "Combined container exited during startup." >&2
               exit 1
@@ -180,6 +180,7 @@ jobs:
               test -s /run/easybot-napcat/napcat.pid
               kill -0 "$(cat /run/easybot-napcat/easybot.pid)"
               kill -0 "$(cat /run/easybot-napcat/napcat.pid)"
+              curl --silent --output /dev/null --max-time 2 http://127.0.0.1:5000/
             '; then
               ready=true
               break
@@ -187,7 +188,7 @@ jobs:
             sleep 5
           done
           [[ "$ready" == true ]] || {
-            echo "EasyBot and NapCat did not become ready within 60 seconds." >&2
+            echo "EasyBot HTTP and the NapCat process did not become ready within 120 seconds." >&2
             exit 1
           }
 
