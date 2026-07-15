@@ -53,9 +53,9 @@ workflow 使用 GitHub API 获取：
 
 ## Workflow
 
-定时/手动运行依次执行发现、更新、Buildx 构建、短时双进程启动验证、bot 提交、GHCR 发布和 Public 可见性检查。不可变标签使用 EasyBot commit 前 8 位与 NapCat release，NapCat-Docker commit、QQ/Chrome 版本保存在 Dockerfile 和 OCI labels 中。
+定时/手动运行依次执行发现、更新、Buildx 构建、短时双进程启动验证、bot 提交、GHCR 发布和 Public 可见性检查。各上游版本保存在 Dockerfile 和 OCI labels 中。
 
-不可变标签同时包含 EasyBot commit、NapCat release 和 NapCat-Docker commit；发布前检查远端标签，已存在时只更新 `latest`，探测错误则停止发布，确保回滚标签不会被覆盖。
+镜像名固定为简短的 `ghcr.io/<owner>/ebnc`。不可变标签只使用构建所对应仓库 commit 的前 8 位；发布前检查远端标签，已存在时只更新 `latest`，探测错误则停止发布，确保回滚标签不会被覆盖。
 
 keepalive job 独立运行，使用 `actions: write` 和 checkout 所需的 `contents: read`。
 

@@ -4,7 +4,7 @@
 
 ## 运行
 
-将 `<owner>/<repo>` 替换为当前 GitHub 仓库路径：
+将 `<owner>` 替换为当前 GitHub 用户或组织名：
 
 ```bash
 docker run -d \
@@ -20,7 +20,7 @@ docker run -d \
   -v easybot-logs:/opt/easybot/logs \
   -v napcat-config:/app/napcat/config \
   -v napcat-qq:/app/.config/QQ \
-  ghcr.io/<owner>/<repo>:latest
+  ghcr.io/<owner>/ebnc:latest
 ```
 
 NapCat 环境变量 `ACCOUNT`、`MODE`、`WEBUI_PREFIX`、`NAPCAT_UID` 和 `NAPCAT_GID` 可按需添加。
@@ -30,6 +30,6 @@ NapCat 环境变量 `ACCOUNT`、`MODE`、`WEBUI_PREFIX`、`NAPCAT_UID` 和 `NAPC
 GitHub Actions 每 6 小时检查一次上游。更新通过构建和启动验证后，会自动提交 Dockerfile 并发布公开 GHCR 镜像：
 
 - `latest`
-- `easybot-<commit前8位>-napcat-v<版本>-docker-<commit前8位>`（不可变回滚标签）
+- `<仓库 commit前8位>`（不可变回滚标签）
 
 如需强制重新发布，可手动运行 `Sync upstreams and publish image` workflow。

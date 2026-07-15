@@ -19,7 +19,7 @@
 - R5：保留双方配置/日志卷和常用端口，当前仅发布 `linux/amd64`。
 - R6：GitHub Actions 每 6 小时及手动触发，查询两个仓库的 main commit 和 NapCatQQ latest stable release，并从锁定 commit 的上游 Dockerfile 解析 .NET、Chrome 与 QQ 版本。
 - R7：上游无变化的定时运行不提交、不发布；发生变化时先更新 Dockerfile、构建并启动验证，成功后直接提交默认分支。
-- R8：发布公开 `ghcr.io/<owner>/<repo>:latest`，并发布 `easybot-<commit前8位>-napcat-v<版本>` 不可变回滚标签。
+- R8：发布公开 `ghcr.io/<owner>/ebnc:latest`，并发布基于当前仓库 commit 前 8 位的不可变回滚标签。
 - R9：版本替换必须严格校验格式与唯一匹配；API、下载、解析或构建失败时不得提交或覆盖 `latest`。
 - R10：保留 keepalive job，使用最小 GitHub Token 权限，不提交凭据或测试代码。
 
@@ -30,7 +30,7 @@
 - [ ] 组合容器的目录、卷、端口、环境变量与双进程生命周期保持正确。
 - [ ] workflow 能发现两个上游更新并同步 .NET、Chrome、QQ 等构建参数；解析不到唯一合法值时明确失败。
 - [ ] 无变化、验证失败、Git push 失败和发布失败的行为符合需求。
-- [ ] GHCR 同时发布公开 `latest` 与基于 EasyBot commit/NapCat release 的不可变标签。
+- [ ] GHCR 同时发布公开 `latest` 与基于当前仓库 commit 的不可变标签。
 - [ ] actionlint、ShellCheck、Hadolint、版本脚本幂等与敏感信息检查通过。
 
 ## Out of Scope

@@ -38,13 +38,14 @@ Questions to answer:
 
 #### 2. Signatures
 
-- Rollback tag: `easybot-<easybot-commit[:8]>-napcat-<release>-docker-<napcat-docker-commit[:8]>`.
+- Image name: `ghcr.io/<owner>/ebnc`.
+- Rollback tag: `<repository-commit[:8]>`.
 - Probe command: `docker buildx imagetools inspect <image>:<rollback-tag>`.
 
 #### 3. Contracts
 
 - `latest` may move after build validation succeeds.
-- A rollback tag must include every upstream repository revision that can change image contents.
+- A rollback tag must be derived from the repository commit containing all locked upstream inputs.
 - An existing rollback tag must never be included in a later push.
 
 #### 4. Validation & Error Matrix
