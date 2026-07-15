@@ -14,4 +14,5 @@
 
 - 本机没有 Docker；实际 Buildx 构建和双进程 smoke 由 workflow 在提交/发布前强制执行。
 - 不新增测试代码；更新脚本行为在系统临时目录验证，产物随即删除。
-- `actionlint 1.7.12`（含 ShellCheck 集成）、`ShellCheck 0.11.0`、`Hadolint 2.14.0`、Bash 语法、版本替换幂等/非法输入、上游解析、下载可达性、空白与敏感信息检查均通过。
+- `actionlint 1.7.12`（含 ShellCheck 集成）、`ShellCheck 0.11.0`、`Hadolint 2.14.0`、Bash 语法、版本替换幂等/非法输入、官方 QQ 配置解析、空白与敏感信息检查均通过。
+- 当前本地代理对 `qqdl.gtimg.cn` 返回 403；QQ deb 的实际可下载性由 GitHub Actions Buildx 构建门禁验证。

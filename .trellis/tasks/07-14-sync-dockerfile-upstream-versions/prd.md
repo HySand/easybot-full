@@ -13,11 +13,11 @@
 ## Requirements
 
 - R1：Dockerfile 不得 `FROM miuxue/easybot` 或 `FROM mlikiowa/napcat-docker`，必须直接实现两个上游的构建步骤。
-- R2：Dockerfile 锁定 .NET 基础镜像标签、EasyBot commit、Chrome 版本、NapCat-Docker commit、NapCat release、QQ 下载标识和 QQ 版本。
+- R2：Dockerfile 锁定 .NET 基础镜像标签、EasyBot commit、Chrome 版本、NapCat-Docker commit、NapCat release、官方 QQ deb URL 和 QQ 版本。
 - R3：EasyBot 程序安装到 `/opt/easybot`；NapCat、模板与 QQ 保持上游的 `/app`、`/opt/QQ` 路径约定。
 - R4：单容器同时运行 EasyBot 与 NapCat；任一主进程退出时终止另一进程，正确处理 SIGTERM/SIGINT 并回收子进程。
 - R5：保留双方配置/日志卷和常用端口，当前仅发布 `linux/amd64`。
-- R6：GitHub Actions 每 6 小时及手动触发，查询两个仓库的 main commit 和 NapCatQQ latest stable release，并从锁定 commit 的上游 Dockerfile 解析 .NET、Chrome 与 QQ 版本。
+- R6：GitHub Actions 每 6 小时及手动触发，查询两个仓库的 main commit、NapCatQQ latest stable release 与腾讯 Linux QQ 官方配置，并解析 .NET、Chrome、QQ URL 与版本。
 - R7：上游无变化的定时运行不提交、不发布；发生变化时先更新 Dockerfile、构建并启动验证，成功后直接提交默认分支。
 - R8：发布公开 `ghcr.io/<owner>/ebnc:latest`，并发布基于当前仓库 commit 前 8 位的不可变回滚标签。
 - R9：版本替换必须严格校验格式与唯一匹配；API、下载、解析或构建失败时不得提交或覆盖 `latest`。

@@ -80,16 +80,17 @@ jobs:
             'ChromeHeadlessShell/Linux-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' \
             <<< "$easybot_dockerfile" | sed 's#.*Linux-##' | sort -u)
 
-          napcat_dockerfile=$(curl --fail --silent --show-error --location \
+          qq_config=$(curl --fail --silent --show-error --location \
             --retry 4 --retry-all-errors \
-            "https://raw.githubusercontent.com/NapNeko/NapCat-Docker/${napcat_docker_commit}/Dockerfile")
-          qq_url=$(grep -oE \
-            'https://dldir1v6\.qq\.com/qqfile/qq/QQNT/[0-9a-f]+/linuxqq_[0-9]+\.[0-9]+\.[0-9]+-[0-9]+_\$\{arch\}\.deb' \
-            <<< "$napcat_dockerfile" | sort -u)
-          qq_download_id=$(sed -nE \
-            's#^.*/QQNT/([^/]+)/linuxqq_.*$#\1#p' <<< "$qq_url")
-          qq_version=$(sed -nE \
-            's#^.*/linuxqq_([^_]+)_\$\{arch\}\.deb$#\1#p' <<< "$qq_url")
+            https://cdn-go.cn/qq-web/im.qq.com_new/latest/rainbow/linuxConfig.js)
+          qq_json=$(sed -nE \
+            's/^[[:space:]]*;\(function\(\)\{var params= (\{.*\});[[:space:]]*$/\1/p' \
+            <<< "$qq_config")
+          qq_deb_url=$(jq -er '.x64DownloadUrl.deb | strings | select(length > 0)' \
+            <<< "$qq_json")
+          qq_version=$(jq -er \
+            '.version | strings | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))' \
+            <<< "$qq_json")
 
           bash scripts/update-upstreams.sh \
             Dockerfile \
@@ -98,7 +99,7 @@ jobs:
             "$chrome_version" \
             "$napcat_docker_commit" \
             "$napcat_version" \
-            "$qq_download_id" \
+            "$qq_deb_url" \
             "$qq_version"
 
           changed=false
@@ -120,7 +121,7 @@ jobs:
             echo "chrome_version=${chrome_version}"
             echo "napcat_docker_commit=${napcat_docker_commit}"
             echo "napcat_version=${napcat_version}"
-            echo "qq_download_id=${qq_download_id}"
+            echo "qq_deb_url=${qq_deb_url}"
             echo "qq_version=${qq_version}"
             echo "changed=${changed}"
             echo "should_publish=${should_publish}"

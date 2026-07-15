@@ -6,8 +6,8 @@ ARG EASYBOT_COMMIT=8856378ab618570bef44f1df0ca0d287c342cc9c
 ARG CHROME_VERSION=142.0.7444.59
 ARG NAPCAT_DOCKER_COMMIT=14e01082da84ebe53b339be1121c89aa3105843d
 ARG NAPCAT_VERSION=v4.18.9
-ARG QQ_DOWNLOAD_ID=f9cbaab2
-ARG QQ_VERSION=3.2.28-48517
+ARG QQ_DEB_URL=https://qqdl.gtimg.cn/qqfile/QQNTV2/9.9.32/release/c390e792/QQ_3.2.31_260710_amd64_01.deb
+ARG QQ_VERSION=3.2.31
 
 FROM ${DOTNET_IMAGE}
 
@@ -15,7 +15,7 @@ ARG EASYBOT_COMMIT
 ARG CHROME_VERSION
 ARG NAPCAT_DOCKER_COMMIT
 ARG NAPCAT_VERSION
-ARG QQ_DOWNLOAD_ID
+ARG QQ_DEB_URL
 ARG QQ_VERSION
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -129,7 +129,7 @@ RUN set -eux; \
         "https://github.com/NapNeko/NapCatQQ/releases/download/${NAPCAT_VERSION}/NapCat.Shell.zip" \
         --output /app/NapCat.Shell.zip; \
     curl --fail --location --retry 5 --retry-all-errors \
-        "https://dldir1v6.qq.com/qqfile/qq/QQNT/${QQ_DOWNLOAD_ID}/linuxqq_${QQ_VERSION}_amd64.deb" \
+        "${QQ_DEB_URL}" \
         --output /tmp/linuxqq.deb; \
     dpkg -i --force-depends /tmp/linuxqq.deb; \
     test -x /opt/QQ/qq; \
