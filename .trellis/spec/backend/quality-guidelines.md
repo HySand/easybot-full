@@ -152,48 +152,54 @@ RUN chmod 0755 /opt/easybot/* \
 #### 2. Signatures
 
 - Discovery source: `https://cdn-go.cn/qq-web/im.qq.com_new/latest/rainbow/linuxConfig.js`.
-- Locked inputs: `QQ_DEB_URL` and `QQ_VERSION`.
+- Stable discovery input: `QQ_CONFIG_URL`.
+- Cache and release inputs: `QQ_VERSION` and `QQ_DEB_URL_SHA256`.
 
 #### 3. Contracts
 
 - Discover the amd64 deb URL from `x64DownloadUrl.deb`, not from NapCat-Docker's historical Dockerfile.
 - Accept only HTTPS URLs on approved Tencent QQ download domains.
 - Require the version in the URL filename to equal `QQ_VERSION`.
+- Do not persist the ephemeral deb URL in the Dockerfile; resolve it from the official latest configuration during each versioned build.
+- Persist a SHA-256 of the URL so a path-only change is detectable without storing the ephemeral URL itself.
+- Use the same resolver in the workflow and Docker build, and fail if the build-time version or URL hash differs from the discovered locked values.
 
 #### 4. Validation & Error Matrix
 
 | Condition | Required behavior |
 | --- | --- |
-| Official config cannot be parsed | Stop before editing Dockerfile |
-| URL host/path or architecture is invalid | Reject in `update-upstreams.sh` |
-| URL and version disagree | Reject in `update-upstreams.sh` |
+| Official config cannot be parsed | Stop before editing Dockerfile or downloading QQ |
+| URL host/path or architecture is invalid | Reject in `resolve-qq-download.sh` |
+| URL and version disagree | Reject in `resolve-qq-download.sh` |
+| Config changes between discovery and build | Fail the build on the expected version or URL-hash mismatch |
 | Deb download returns an error | Fail the image build; do not commit or publish |
 
 #### 5. Good/Base/Bad Cases
 
 - Good: official config yields a matching amd64 deb URL and semantic version.
-- Base: a new official URL updates both locked Dockerfile arguments.
+- Base: a new official release or path-only replacement updates `QQ_VERSION` and/or `QQ_DEB_URL_SHA256`; the build resolves its current direct URL.
 - Bad: continue retrying a permanently removed NapCat-Docker URL that returns 404.
 
 #### 6. Tests Required
 
 - Parse the current official configuration and assert exactly one URL/version pair.
-- Verify updater idempotence with the discovered pair.
-- Verify invalid domains, non-amd64 files, and mismatched versions fail.
+- Verify updater idempotence with the discovered version.
+- Verify the resolver rejects an unexpected config URL and mismatched expected version.
 
 #### 7. Wrong vs Correct
 
 Wrong:
 
 ```dockerfile
-ARG QQ_DOWNLOAD_ID=f9cbaab2
+ARG QQ_DEB_URL=https://qqdl.gtimg.cn/qqfile/.../QQ_3.2.31_260710_amd64_01.deb
 ```
 
 Correct:
 
 ```dockerfile
-ARG QQ_DEB_URL=https://qqdl.gtimg.cn/qqfile/.../QQ_3.2.31_260710_amd64_01.deb
+ARG QQ_CONFIG_URL=https://cdn-go.cn/qq-web/im.qq.com_new/latest/rainbow/linuxConfig.js
 ARG QQ_VERSION=3.2.31
+ARG QQ_DEB_URL_SHA256=e2f7c5e2a6029840c7fc753389b8236ac6799ea34f64cdf711c957943e0da421
 ```
 
 

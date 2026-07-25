@@ -6,8 +6,9 @@ ARG EASYBOT_COMMIT=8856378ab618570bef44f1df0ca0d287c342cc9c
 ARG CHROME_VERSION=142.0.7444.59
 ARG NAPCAT_DOCKER_COMMIT=14e01082da84ebe53b339be1121c89aa3105843d
 ARG NAPCAT_VERSION=v4.18.9
-ARG QQ_DEB_URL=https://qqdl.gtimg.cn/qqfile/QQNT/9.9.31/release/00e6a3e7/QQ_3.2.29_260528_amd64_01.deb
-ARG QQ_VERSION=3.2.29
+ARG QQ_CONFIG_URL=https://cdn-go.cn/qq-web/im.qq.com_new/latest/rainbow/linuxConfig.js
+ARG QQ_VERSION=3.2.31
+ARG QQ_DEB_URL_SHA256=e2f7c5e2a6029840c7fc753389b8236ac6799ea34f64cdf711c957943e0da421
 
 FROM ${DOTNET_IMAGE}
 
@@ -15,8 +16,9 @@ ARG EASYBOT_COMMIT
 ARG CHROME_VERSION
 ARG NAPCAT_DOCKER_COMMIT
 ARG NAPCAT_VERSION
-ARG QQ_DEB_URL
+ARG QQ_CONFIG_URL
 ARG QQ_VERSION
+ARG QQ_DEB_URL_SHA256
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Shanghai \
@@ -89,6 +91,8 @@ RUN apt-get update \
     && printf '%s\n' "$TZ" > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
 
+COPY scripts/resolve-qq-download.sh /usr/local/bin/resolve-qq-download
+
 RUN set -eux; \
     mkdir -p /opt/easybot /tmp/easybot-source; \
     curl --fail --location --retry 4 --retry-all-errors \
@@ -128,8 +132,12 @@ RUN set -eux; \
     curl --fail --location --retry 4 --retry-all-errors \
         "https://github.com/NapNeko/NapCatQQ/releases/download/${NAPCAT_VERSION}/NapCat.Shell.zip" \
         --output /app/NapCat.Shell.zip; \
+    qq_resolution=$(bash /usr/local/bin/resolve-qq-download \
+        "${QQ_CONFIG_URL}" "${QQ_VERSION}" "${QQ_DEB_URL_SHA256}"); \
+    printf '%s' "$qq_resolution" > /tmp/qq-resolution.json; \
+    qq_deb_url=$(jq -er '.deb_url' /tmp/qq-resolution.json); \
     curl --fail --location --retry 5 --retry-all-errors \
-        "${QQ_DEB_URL}" \
+        "$qq_deb_url" \
         --output /tmp/linuxqq.deb; \
     dpkg -i --force-depends /tmp/linuxqq.deb; \
     test -x /opt/QQ/qq; \
@@ -137,7 +145,8 @@ RUN set -eux; \
     printf '%s\n' "(async () => {await import('file:///app/napcat/napcat.mjs');})();" \
         > /opt/QQ/resources/app/loadNapCat.js; \
     sed -i 's|"main": "[^"]*"|"main": "./loadNapCat.js"|' /opt/QQ/resources/app/package.json; \
-    rm -rf /tmp/napcat-docker-source /tmp/napcat-docker.tar.gz /tmp/linuxqq.deb
+    rm -rf /tmp/napcat-docker-source /tmp/napcat-docker.tar.gz \
+        /tmp/linuxqq.deb /tmp/qq-resolution.json
 
 COPY scripts/entrypoint.sh /usr/local/bin/easybot-napcat-entrypoint
 

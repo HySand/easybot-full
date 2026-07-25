@@ -11,8 +11,9 @@ Dockerfile 的版本契约由以下 ARG 组成：
 - `CHROME_VERSION`
 - `NAPCAT_DOCKER_COMMIT`
 - `NAPCAT_VERSION`
-- `QQ_DEB_URL`
+- `QQ_CONFIG_URL`（腾讯官方长期 latest 配置入口）
 - `QQ_VERSION`
+- `QQ_DEB_URL_SHA256`（当前直链的摘要，仅用于变化检测、缓存失效和竞态校验）
 
 构建流程：
 
@@ -21,7 +22,7 @@ Dockerfile 的版本契约由以下 ARG 组成：
 3. 按锁定 Chrome 版本下载 Chrome Headless Shell 到 EasyBot 预期目录。
 4. 下载 `NapNeko/NapCat-Docker` 的锁定 commit archive，复制 `entrypoint.sh` 和 `templates` 到 `/app`。
 5. 下载锁定 NapCatQQ release 的 `NapCat.Shell.zip`。
-6. 从腾讯 Linux QQ 官方配置锁定 amd64 deb URL 与版本并安装，再写入 `loadNapCat.js`、修改 QQ package main。
+6. 按锁定的 QQ 版本从腾讯 Linux QQ 官方 latest 配置动态解析、校验并下载 amd64 deb，再写入 `loadNapCat.js`、修改 QQ package main。直链不写入 Dockerfile，避免腾讯下架旧路径后无法重建。
 7. 使用本仓库组合入口通过 `tini` 同时启动上游 NapCat 入口和 EasyBot。
 
 所有 archive、zip 和 deb 在同一 RUN 层使用后删除，避免进入最终镜像。
@@ -49,9 +50,9 @@ workflow 使用 GitHub API 获取：
 随后读取锁定 commit 的原始 Dockerfile与腾讯官方 Linux QQ 配置：
 
 - 从 EasyBot Dockerfile 唯一解析 .NET base image 与 Chrome 四段版本。
-- 从 `linuxConfig.js` 唯一解析 amd64 deb URL 与 QQ 版本，并校验官方域名、文件格式和 URL 内版本一致性。
+- 通过共享的 `resolve-qq-download.sh` 从 `linuxConfig.js` 唯一解析 amd64 deb URL 与 QQ 版本，并校验官方域名、文件格式和 URL 内版本一致性。workflow 将版本和 URL 摘要写入 Dockerfile；构建时再次解析 latest 配置并要求二者匹配，以使版本或路径变化都失效缓存并防止发现/构建竞态。
 
-`scripts/update-upstreams.sh` 集中验证并更新全部七个 ARG。任何字段缺失、重复或格式非法都会中止。
+`scripts/update-upstreams.sh` 集中验证并更新全部八个 ARG。任何字段缺失、重复或格式非法都会中止。
 
 ## Workflow
 
