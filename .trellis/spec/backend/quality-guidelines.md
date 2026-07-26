@@ -164,6 +164,7 @@ RUN chmod 0755 /opt/easybot/* \
 - Persist a SHA-256 of the URL so a path-only change is detectable without storing the ephemeral URL itself.
 - Use the same resolver in the workflow and Docker build, and fail if the build-time version or URL hash differs from the discovered locked values.
 - During the one-time migration, accept exactly one historical `QQ_DEB_URL` line and rewrite it to the config form; never leave both forms in the Dockerfile.
+- Large QQ downloads must use a separate temporary path, bounded retries, IPv4/HTTP1.1 compatibility flags, and `dpkg-deb --info` validation before installation.
 
 #### 4. Validation & Error Matrix
 
@@ -174,6 +175,7 @@ RUN chmod 0755 /opt/easybot/* \
 | URL and version disagree | Reject in `resolve-qq-download.sh` |
 | Config changes between discovery and build | Fail the build on the expected version or URL-hash mismatch |
 | Legacy Dockerfile has one QQ deb URL | Migrate it to `QQ_CONFIG_URL` and add the URL hash in the same update |
+| QQ CDN returns a transient HTTP/network error | Retry into a temporary file; install only after package validation succeeds |
 | Deb download returns an error | Fail the image build; do not commit or publish |
 
 #### 5. Good/Base/Bad Cases

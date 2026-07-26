@@ -29,7 +29,10 @@ expected_url_sha256=${3:-}
   || die 'invalid expected QQ URL SHA-256'
 
 config=$(curl --fail --silent --show-error --location \
-  --retry 5 --retry-all-errors "$config_url")
+  --retry 5 --retry-all-errors --ipv4 --http1.1 \
+  --header 'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36' \
+  --header 'Referer: https://im.qq.com/linuxqq/' \
+  "$config_url")
 config_json=$(sed -nE \
   's/^[[:space:]]*;\(function\(\)\{var params= (\{.*\});[[:space:]]*$/\1/p' \
   <<< "$config")

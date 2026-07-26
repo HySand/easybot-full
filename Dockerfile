@@ -123,22 +123,41 @@ RUN set -eux; \
 RUN set -eux; \
     useradd --no-log-init --home-dir /app napcat; \
     mkdir -p /app /tmp/napcat-docker-source; \
-    curl --fail --location --retry 4 --retry-all-errors \
+    echo "Downloading NapCat Docker source: ${NAPCAT_DOCKER_COMMIT}"; \
+    curl --fail-with-body --location --retry 4 --retry-all-errors \
         "https://github.com/NapNeko/NapCat-Docker/archive/${NAPCAT_DOCKER_COMMIT}.tar.gz" \
         --output /tmp/napcat-docker.tar.gz; \
     tar -xzf /tmp/napcat-docker.tar.gz -C /tmp/napcat-docker-source --strip-components=1; \
     cp /tmp/napcat-docker-source/entrypoint.sh /app/entrypoint.sh; \
     cp -a /tmp/napcat-docker-source/templates /app/templates; \
-    curl --fail --location --retry 4 --retry-all-errors \
+    echo "Downloading NapCat Shell: ${NAPCAT_VERSION}"; \
+    curl --fail-with-body --location --retry 4 --retry-all-errors \
         "https://github.com/NapNeko/NapCatQQ/releases/download/${NAPCAT_VERSION}/NapCat.Shell.zip" \
         --output /app/NapCat.Shell.zip; \
     qq_resolution=$(bash /usr/local/bin/resolve-qq-download \
         "${QQ_CONFIG_URL}" "${QQ_VERSION}" "${QQ_DEB_URL_SHA256}"); \
     printf '%s' "$qq_resolution" > /tmp/qq-resolution.json; \
     qq_deb_url=$(jq -er '.deb_url' /tmp/qq-resolution.json); \
-    curl --fail --location --retry 5 --retry-all-errors \
-        "$qq_deb_url" \
-        --output /tmp/linuxqq.deb; \
+    qq_downloaded=false; \
+    for qq_attempt in 1 2 3 4 5; do \
+        rm -f /tmp/linuxqq.deb.part; \
+        echo "Downloading Linux QQ (attempt ${qq_attempt}/5): ${qq_deb_url}"; \
+        if curl --fail-with-body --location \
+            --retry 3 --retry-delay 5 --retry-max-time 180 --retry-all-errors \
+            --connect-timeout 30 --max-time 300 --ipv4 --http1.1 \
+            --header 'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36' \
+            --header 'Referer: https://im.qq.com/linuxqq/' \
+            "$qq_deb_url" \
+            --output /tmp/linuxqq.deb.part; then \
+            mv /tmp/linuxqq.deb.part /tmp/linuxqq.deb; \
+            qq_downloaded=true; \
+            break; \
+        fi; \
+        echo "Linux QQ download attempt ${qq_attempt} failed; retrying in 10 seconds." >&2; \
+        sleep 10; \
+    done; \
+    test "$qq_downloaded" = true; \
+    dpkg-deb --info /tmp/linuxqq.deb >/dev/null; \
     dpkg -i --force-depends /tmp/linuxqq.deb; \
     test -x /opt/QQ/qq; \
     chmod 0755 /app/entrypoint.sh; \
