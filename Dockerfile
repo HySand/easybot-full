@@ -92,6 +92,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY scripts/resolve-qq-download.sh /usr/local/bin/resolve-qq-download
+COPY scripts/download-qq-deb.sh /usr/local/bin/download-qq-deb
 
 RUN set -eux; \
     mkdir -p /opt/easybot /tmp/easybot-source; \
@@ -138,25 +139,7 @@ RUN set -eux; \
         "${QQ_CONFIG_URL}" "${QQ_VERSION}" "${QQ_DEB_URL_SHA256}"); \
     printf '%s' "$qq_resolution" > /tmp/qq-resolution.json; \
     qq_deb_url=$(jq -er '.deb_url' /tmp/qq-resolution.json); \
-    qq_downloaded=false; \
-    for qq_attempt in 1 2 3 4 5; do \
-        rm -f /tmp/linuxqq.deb.part; \
-        echo "Downloading Linux QQ (attempt ${qq_attempt}/5): ${qq_deb_url}"; \
-        if curl --fail-with-body --location \
-            --retry 3 --retry-delay 5 --retry-max-time 180 --retry-all-errors \
-            --connect-timeout 30 --max-time 300 --ipv4 --http1.1 \
-            --header 'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36' \
-            --header 'Referer: https://im.qq.com/linuxqq/' \
-            "$qq_deb_url" \
-            --output /tmp/linuxqq.deb.part; then \
-            mv /tmp/linuxqq.deb.part /tmp/linuxqq.deb; \
-            qq_downloaded=true; \
-            break; \
-        fi; \
-        echo "Linux QQ download attempt ${qq_attempt} failed; retrying in 10 seconds." >&2; \
-        sleep 10; \
-    done; \
-    test "$qq_downloaded" = true; \
+    download-qq-deb "$qq_deb_url" /tmp/linuxqq.deb; \
     dpkg-deb --info /tmp/linuxqq.deb >/dev/null; \
     dpkg -i --force-depends /tmp/linuxqq.deb; \
     test -x /opt/QQ/qq; \
