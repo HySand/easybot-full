@@ -80,10 +80,8 @@ jobs:
             'ChromeHeadlessShell/Linux-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' \
             <<< "$easybot_dockerfile" | sed 's#.*Linux-##' | sort -u)
 
-          qq_resolution=$(bash scripts/resolve-qq-download.sh \
-            https://cdn-go.cn/qq-web/im.qq.com_new/latest/rainbow/linuxConfig.js)
-          qq_version=$(jq -er '.version' <<< "$qq_resolution")
-          qq_url_sha256=$(jq -er '.url_sha256' <<< "$qq_resolution")
+          qq_deb_url='https://qqdl.gtimg.cn/qqfile/QQNT/9.9.32/beta/fd40a3ec/linuxqq_3.2.30-50969_amd64.deb'
+          qq_version='3.2.30'
 
           bash scripts/update-upstreams.sh \
             Dockerfile \
@@ -92,8 +90,8 @@ jobs:
             "$chrome_version" \
             "$napcat_docker_commit" \
             "$napcat_version" \
-            "$qq_version" \
-            "$qq_url_sha256"
+            "$qq_deb_url" \
+            "$qq_version"
 
           changed=false
           if ! git diff --quiet -- Dockerfile; then
@@ -114,6 +112,7 @@ jobs:
             echo "chrome_version=${chrome_version}"
             echo "napcat_docker_commit=${napcat_docker_commit}"
             echo "napcat_version=${napcat_version}"
+            echo "qq_deb_url=${qq_deb_url}"
             echo "qq_version=${qq_version}"
             echo "changed=${changed}"
             echo "should_publish=${should_publish}"

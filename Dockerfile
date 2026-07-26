@@ -6,9 +6,8 @@ ARG EASYBOT_COMMIT=2a35c2189eadfb97547e072770ce8f25e8118820
 ARG CHROME_VERSION=142.0.7444.59
 ARG NAPCAT_DOCKER_COMMIT=f0599fb2eef4e9007aed72501849e2ca3eeaccdf
 ARG NAPCAT_VERSION=v4.18.13
-ARG QQ_CONFIG_URL=https://cdn-go.cn/qq-web/im.qq.com_new/latest/rainbow/linuxConfig.js
-ARG QQ_VERSION=3.2.31
-ARG QQ_DEB_URL_SHA256=e2f7c5e2a6029840c7fc753389b8236ac6799ea34f64cdf711c957943e0da421
+ARG QQ_DEB_URL=https://qqdl.gtimg.cn/qqfile/QQNT/9.9.32/beta/fd40a3ec/linuxqq_3.2.30-50969_amd64.deb
+ARG QQ_VERSION=3.2.30
 
 FROM ${DOTNET_IMAGE}
 
@@ -16,9 +15,8 @@ ARG EASYBOT_COMMIT
 ARG CHROME_VERSION
 ARG NAPCAT_DOCKER_COMMIT
 ARG NAPCAT_VERSION
-ARG QQ_CONFIG_URL
+ARG QQ_DEB_URL
 ARG QQ_VERSION
-ARG QQ_DEB_URL_SHA256
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Shanghai \
@@ -91,8 +89,6 @@ RUN apt-get update \
     && printf '%s\n' "$TZ" > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
 
-COPY scripts/resolve-qq-download.sh /usr/local/bin/resolve-qq-download
-COPY scripts/download-qq-deb.sh /usr/local/bin/download-qq-deb
 
 RUN set -eux; \
     mkdir -p /opt/easybot /tmp/easybot-source; \
@@ -135,12 +131,19 @@ RUN set -eux; \
     curl --fail-with-body --location --retry 4 --retry-all-errors \
         "https://github.com/NapNeko/NapCatQQ/releases/download/${NAPCAT_VERSION}/NapCat.Shell.zip" \
         --output /app/NapCat.Shell.zip; \
-    qq_resolution=$(bash /usr/local/bin/resolve-qq-download \
-        "${QQ_CONFIG_URL}" "${QQ_VERSION}" "${QQ_DEB_URL_SHA256}"); \
-    printf '%s' "$qq_resolution" > /tmp/qq-resolution.json; \
-    qq_deb_url=$(jq -er '.deb_url' /tmp/qq-resolution.json); \
-    bash /usr/local/bin/download-qq-deb "$qq_deb_url" /tmp/linuxqq.deb; \
-    dpkg-deb --info /tmp/linuxqq.deb >/dev/null; \
+    qq_downloaded=false; \
+    for qq_attempt in 1 2 3 4 5; do \
+        echo "Downloading Linux QQ (attempt ${qq_attempt}/5): ${QQ_DEB_URL}"; \
+        if curl --retry 3 --retry-delay 5 --connect-timeout 30 --max-time 300 \
+            --fail --location --output /tmp/linuxqq.deb "${QQ_DEB_URL}"; then \
+            qq_downloaded=true; \
+            break; \
+        fi; \
+        echo "Attempt ${qq_attempt} failed, retrying in 10 seconds..." >&2; \
+        sleep 10; \
+    done; \
+    test "$qq_downloaded" = true; \
+    test -s /tmp/linuxqq.deb; \
     dpkg -i --force-depends /tmp/linuxqq.deb; \
     test -x /opt/QQ/qq; \
     chmod 0755 /app/entrypoint.sh; \

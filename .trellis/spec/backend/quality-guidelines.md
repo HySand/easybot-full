@@ -143,7 +143,7 @@ RUN chmod 0755 /opt/easybot/* \
     && test -x /opt/easybot/EasyBot.WebUI.Updater
 ```
 
-### Scenario: Lock Linux QQ from the official live configuration
+### Scenario: Download Linux QQ like NapCat-Docker
 
 #### 1. Scope / Trigger
 
@@ -151,44 +151,34 @@ RUN chmod 0755 /opt/easybot/* \
 
 #### 2. Signatures
 
-- Discovery source: `https://cdn-go.cn/qq-web/im.qq.com_new/latest/rainbow/linuxConfig.js`.
-- Stable discovery input: `QQ_CONFIG_URL`.
-- Cache and release inputs: `QQ_VERSION` and `QQ_DEB_URL_SHA256`.
+- Download input: `QQ_DEB_URL`.
+- Version input: `QQ_VERSION`.
 
 #### 3. Contracts
 
-- Discover the amd64 deb URL from `x64DownloadUrl.deb`, not from NapCat-Docker's historical Dockerfile.
 - Accept only HTTPS URLs on approved Tencent QQ download domains.
 - Require the version in the URL filename to equal `QQ_VERSION`.
-- Do not persist the ephemeral deb URL in the Dockerfile; resolve it from the official latest configuration during each versioned build.
-- Persist a SHA-256 of the URL so a path-only change is detectable without storing the ephemeral URL itself.
-- Use the same resolver in the workflow and Docker build, and fail if the build-time version or URL hash differs from the discovered locked values.
-- During the one-time migration, accept exactly one historical `QQ_DEB_URL` line and rewrite it to the config form; never leave both forms in the Dockerfile.
-- Large QQ downloads must use a separate temporary path, bounded retries, IPv4/HTTP1.1 compatibility flags, and `dpkg-deb --info` validation before installation.
+- Download the fixed URL with curl's retries, then retry the complete download up to five times as NapCat-Docker does.
 
 #### 4. Validation & Error Matrix
 
 | Condition | Required behavior |
 | --- | --- |
-| Official config cannot be parsed | Stop before editing Dockerfile or downloading QQ |
-| URL host/path or architecture is invalid | Reject in `resolve-qq-download.sh` |
-| URL and version disagree | Reject in `resolve-qq-download.sh` |
-| Config changes between discovery and build | Fail the build on the expected version or URL-hash mismatch |
-| Legacy Dockerfile has one QQ deb URL | Migrate it to `QQ_CONFIG_URL` and add the URL hash in the same update |
-| QQ CDN returns a transient HTTP/network error | Retry into a temporary file; install only after package validation succeeds |
+| URL host/path or architecture is invalid | Reject in `update-upstreams.sh` |
+| URL and version disagree | Reject in `update-upstreams.sh` |
+| QQ CDN returns a transient HTTP/network error | Retry the complete download up to five times |
 | Deb download returns an error | Fail the image build; do not commit or publish |
 
 #### 5. Good/Base/Bad Cases
 
-- Good: official config yields a matching amd64 deb URL and semantic version.
-- Base: a new official release or path-only replacement updates `QQ_VERSION` and/or `QQ_DEB_URL_SHA256`; the build resolves its current direct URL.
+- Good: the fixed NapCat-compatible amd64 URL matches the semantic QQ version.
+- Base: a new QQ URL and version are updated together by the workflow.
 - Bad: continue retrying a permanently removed NapCat-Docker URL that returns 404.
 
 #### 6. Tests Required
 
-- Parse the current official configuration and assert exactly one URL/version pair.
-- Verify updater idempotence with the discovered version.
-- Verify the resolver rejects an unexpected config URL and mismatched expected version.
+- Verify updater idempotence with the fixed URL/version pair.
+- Verify invalid domains, architectures, and mismatched versions fail.
 
 #### 7. Wrong vs Correct
 
@@ -201,9 +191,8 @@ ARG QQ_DEB_URL=https://qqdl.gtimg.cn/qqfile/.../QQ_3.2.31_260710_amd64_01.deb
 Correct:
 
 ```dockerfile
-ARG QQ_CONFIG_URL=https://cdn-go.cn/qq-web/im.qq.com_new/latest/rainbow/linuxConfig.js
-ARG QQ_VERSION=3.2.31
-ARG QQ_DEB_URL_SHA256=e2f7c5e2a6029840c7fc753389b8236ac6799ea34f64cdf711c957943e0da421
+ARG QQ_DEB_URL=https://qqdl.gtimg.cn/qqfile/QQNT/9.9.32/beta/fd40a3ec/linuxqq_3.2.30-50969_amd64.deb
+ARG QQ_VERSION=3.2.30
 ```
 
 
