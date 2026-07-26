@@ -139,7 +139,7 @@ RUN set -eux; \
         "${QQ_CONFIG_URL}" "${QQ_VERSION}" "${QQ_DEB_URL_SHA256}"); \
     printf '%s' "$qq_resolution" > /tmp/qq-resolution.json; \
     qq_deb_url=$(jq -er '.deb_url' /tmp/qq-resolution.json); \
-    download-qq-deb "$qq_deb_url" /tmp/linuxqq.deb; \
+    bash /usr/local/bin/download-qq-deb "$qq_deb_url" /tmp/linuxqq.deb; \
     dpkg-deb --info /tmp/linuxqq.deb >/dev/null; \
     dpkg -i --force-depends /tmp/linuxqq.deb; \
     test -x /opt/QQ/qq; \
